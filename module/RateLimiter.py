@@ -8,25 +8,31 @@ def deltaHours(timeA, timeB):
     hours = divmod(duration, 3600)[0]
     return hours
 
-def RateLimiter(func):
-    latestCallTimes = []
+def rateLimiter(func):
+    latestCallTimes = {}
     
-    def wrapper(timeOfCall = datetime.datetime.now()):
+    def wrapper(obj, uuid, timeOfCall = datetime.datetime.now()):
         nonlocal latestCallTimes
         
         now = datetime.datetime.now()
-        latestCallTimes = [time for time in latestCallTimes if deltaHours(now, time) < 1.]
         
-        if (len(latestCallTimes) < 100):
-            latestCallTimes.append(timeOfCall)
-            return func()
+        if uuid in latestCallTimes:
+            latestCallTimes[uuid] = [time for time in latestCallTimes[uuid] if deltaHours(now, time) < 1.]
         else:
-            duration = now - latestCallTimes[0]
+            latestCallTimes[uuid] = []
+        
+        if (len(latestCallTimes[uuid]) < 100):
+            latestCallTimes[uuid].append(timeOfCall)
+            return func(obj)
+        else:
+            duration = now - latestCallTimes[uuid][0]
             duration = duration.total_seconds()
             secondsLeft = 3600 - duration
             
             return Response("Rate limit exceeded. Try again in {0} seconds".format(secondsLeft),
                             status=429,
                             mimetype='application/json')
-
+    
+    wrapper.cache_reset = lambda : latestCallTimes.clear()
+    
     return wrapper
